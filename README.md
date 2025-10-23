@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Free Tailwind admin dashboard template
 
 ![Mosaic Tailwind admin template preview](https://github.com/cruip/tailwind-dashboard-template/assets/2683512/ef306423-3b89-4d0c-be80-9c5c682478d1)
@@ -80,3 +81,6 @@ We're an Italian developer/designer duo creating high-quality design/code resour
 ## Stay in the loop
 
 If you would like to know when we release new resources, you can follow [@pacovitiello](https://x.com/pacovitiello) and [@DavidePacilio](https://x.com/DavidePacilio) on X, or you can subscribe to our [newsletter](https://cruip.com/newsletter/).
+=======
+# grox-supermarket
+>>>>>>> a8d0f14a771079e96006a161e3595ac4309bb9c1
