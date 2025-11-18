@@ -13,7 +13,7 @@ function ErpDashboard() {
   useEffect(() => {
     const fetchSummary = async () => {
       try {
-        // Simulated data:
+        // Simulated data
         setSummary({
           revenue: 1200000,
           expenses: 800000,
@@ -59,18 +59,18 @@ function ErpDashboard() {
     num?.toLocaleString("en-NG", { style: "currency", currency: "NGN" });
 
   return (
-    <div className="flex h-screen w-screen bg-[#0e0f11] text-gray-100 overflow-hidden">
+    <div className="flex w-screen min-h-screen bg-[#0e0f11] text-gray-100 overflow-hidden">
       {/* Sidebar */}
       <Sidebar sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
-      {/* Main Wrapper */}
-      <div className="flex flex-col flex-1 h-full overflow-hidden">
+      {/* Main Content */}
+      <div className="flex flex-col flex-1">
         {/* Header */}
         <Header sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} />
 
         {/* Scrollable Content */}
         <main className="flex-1 overflow-y-auto scrollbar-hide bg-gradient-to-br from-gray-900 via-gray-850 to-gray-900">
-          <div className="max-w-9xl mx-auto px-6 py-6 min-h-full flex flex-col">
+          <div className="max-w-9xl mx-auto px-6 py-6 flex flex-col min-h-full">
             {/* Page Header */}
             <div className="flex justify-between items-center mb-6 flex-wrap">
               <div>
@@ -174,7 +174,9 @@ function ErpDashboard() {
                             <td className="py-2">{act.date}</td>
                             <td className="py-2">{act.module}</td>
                             <td className="py-2">{act.description}</td>
-                            <td className="py-2">{formatCurrency(act.amount)}</td>
+                            <td className="py-2">
+                              {formatCurrency(act.amount)}
+                            </td>
                             <td className="py-2">
                               <span
                                 className={`px-2 py-1 rounded-md text-sm ${

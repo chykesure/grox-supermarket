@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Sidebar from "../../../partials/ErpSidebar";
 import Header from "../../../partials/Header";
@@ -7,11 +7,12 @@ import Banner from "../../../partials/Banner";
 // Import Inventory sub-pages
 import StockPage from "./StockPage";
 import TransfersPage from "./TransfersPage";
-import AdjustmentsPage from "./AdjustmentsPage";
+import StockList from "./StockList";
 
 const InventoryMgt = () => {
   const { subpage } = useParams();
   const navigate = useNavigate();
+  const [stockRefresh, setStockRefresh] = useState(0); // signal to refresh StockList
 
   useEffect(() => {
     if (!subpage) {
@@ -28,13 +29,13 @@ const InventoryMgt = () => {
   const renderTabContent = () => {
     switch (activeTab) {
       case "stock":
-        return <StockPage />;
-      case "transfers":
+        return <StockPage onStockConfirmed={() => setStockRefresh(prev => prev + 1)} />;
+      case "stockbalance":
         return <TransfersPage />;
-      case "adjustments":
-        return <AdjustmentsPage />;
+      case "list":
+        return <StockList />;
       default:
-        return <StockPage />;
+        return <StockPage onStockConfirmed={() => setStockRefresh(prev => prev + 1)} />;
     }
   };
 
@@ -43,7 +44,6 @@ const InventoryMgt = () => {
       <Sidebar />
       <div className="relative flex flex-col flex-1 overflow-y-auto overflow-x-hidden">
         <Header />
-
         <main className="flex-1 overflow-y-auto">
           <div className="px-4 sm:px-6 lg:px-8 py-4 w-full">
             <div className="mb-6">
@@ -58,7 +58,7 @@ const InventoryMgt = () => {
             {/* Tabs */}
             <div className="mb-6 border-b border-gray-700">
               <nav className="flex space-x-8 -mb-px">
-                {["stock", "transfers", "adjustments"].map((tab) => (
+                {["stock", "list", "stockbalance"].map((tab) => (
                   <button
                     key={tab}
                     className={`pb-2 text-sm font-medium transition ${
@@ -80,7 +80,6 @@ const InventoryMgt = () => {
             </div>
           </div>
         </main>
-
         <Banner />
       </div>
     </div>

@@ -32,7 +32,7 @@ function Receipt() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-gray-900 text-gray-200 p-6 items-center">
+    <div className="flex flex-col  bg-gray-900 text-gray-200 p-6 items-center">
       <h1 className="text-3xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
         Receipt
       </h1>

@@ -8,6 +8,7 @@ import Banner from "../../../partials/Banner";
 import OrdersPage from "./OrdersPage";
 import SuppliersPage from "./SuppliersPage";
 import ApprovalsPage from "./ApprovalsPage";
+import LedgerPage from "./LedgerPage";
 
 function PurchaseMgt() {
     const { subpage } = useParams();
@@ -28,14 +29,12 @@ function PurchaseMgt() {
 
     const renderTabContent = () => {
         switch (activeTab) {
-            case "orders":
-                return <OrdersPage />;
             case "suppliers":
                 return <SuppliersPage />;
-            case "approvals":
-                return <ApprovalsPage />;
+            case "ledger":
+                return <LedgerPage />;
             default:
-                return <OrdersPage />;
+                return <SuppliersPage />;
         }
     };
 
@@ -58,14 +57,14 @@ function PurchaseMgt() {
                                 Procurement Management
                             </h1>
                             <p className="text-gray-400 mt-1">
-                                Manage purchase orders, suppliers, and approvals efficiently.
+                                Manage purchase orders, suppliers, approvals, and ledgers efficiently.
                             </p>
                         </div>
 
                         {/* Tabs */}
                         <div className="mb-6 border-b border-gray-700">
                             <nav className="flex space-x-8 -mb-px">
-                                {["orders", "suppliers", "approvals"].map((tab) => (
+                                {["suppliers", "ledger"].map((tab) => (
                                     <button
                                         key={tab}
                                         className={`pb-2 text-sm font-medium transition ${
