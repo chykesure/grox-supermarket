@@ -12,7 +12,6 @@ const generateReferenceNumber = (prefix = "REF") => {
   const date = new Date().toISOString().slice(0, 10).replace(/-/g, "");
   return `${prefix}-${date}-${random}`;
 };
-
 // --------------------
 // Save Stock Invoice (Add or Restock)
 // --------------------
@@ -40,13 +39,14 @@ export const saveStockInvoice = async (req, res) => {
         stock.stockBalance += item.quantity;
         stock.costPrice = item.costPrice || stock.costPrice;
         stock.sellingPrice = item.sellingPrice || stock.sellingPrice;
-        stock.wholesalePrice = item.wholesalePrice || stock.wholesalePrice || 0; // optional
+        stock.wholesalePrice = item.wholesalePrice || stock.wholesalePrice || 0;
+        stock.supplierId = supplier._id; // ensure supplierId saved
         stock.referenceNumber = referenceNumber;
         stock.date = new Date();
         await stock.save();
       } else {
         stock = await new Stock({
-          supplierId,
+          supplierId: supplier._id,
           productId: item.productId,
           productName: item.name,
           sku: item.sku,
@@ -60,7 +60,7 @@ export const saveStockInvoice = async (req, res) => {
         }).save();
       }
 
-      // --- Sync to Product table ---
+      // Sync to Product table
       await Product.findByIdAndUpdate(stock.productId, {
         costPrice: stock.costPrice,
         sellingPrice: stock.sellingPrice,
@@ -72,7 +72,7 @@ export const saveStockInvoice = async (req, res) => {
       ledgerEntries.push({
         productId: stock._id,
         productName: stock.productName,
-        supplierId,
+        supplierId: supplier._id, // always valid
         quantityAdded: item.quantity,
         balanceAfterStock: stock.stockBalance,
         costPrice: stock.costPrice,
@@ -83,9 +83,7 @@ export const saveStockInvoice = async (req, res) => {
       });
     }
 
-    if (ledgerEntries.length > 0) {
-      await Ledger.insertMany(ledgerEntries);
-    }
+    if (ledgerEntries.length > 0) await Ledger.insertMany(ledgerEntries);
 
     res.status(201).json({
       message: "Stock invoice saved, ledger updated, and Product prices synced.",
@@ -127,12 +125,13 @@ export const confirmStockInvoice = async (req, res) => {
         stock.costPrice = item.costPrice || stock.costPrice;
         stock.sellingPrice = item.sellingPrice || stock.sellingPrice;
         stock.wholesalePrice = item.wholesalePrice || stock.wholesalePrice || 0;
+        stock.supplierId = supplier._id;
         stock.referenceNumber = ref;
         stock.date = new Date();
         await stock.save();
       } else {
         stock = await new Stock({
-          supplierId,
+          supplierId: supplier._id,
           productId: item.productId,
           productName: item.name,
           sku: item.sku,
@@ -146,7 +145,7 @@ export const confirmStockInvoice = async (req, res) => {
         }).save();
       }
 
-      // --- Sync to Product table ---
+      // Sync to Product table
       if (stock.productId) {
         await Product.findByIdAndUpdate(stock.productId, {
           costPrice: stock.costPrice,
@@ -160,7 +159,7 @@ export const confirmStockInvoice = async (req, res) => {
       ledgerEntries.push({
         productId: stock._id,
         productName: stock.productName,
-        supplierId,
+        supplierId: supplier._id,
         quantityAdded: item.quantity,
         balanceAfterStock: stock.stockBalance,
         costPrice: stock.costPrice,
@@ -171,9 +170,7 @@ export const confirmStockInvoice = async (req, res) => {
       });
     }
 
-    if (ledgerEntries.length > 0) {
-      await Ledger.insertMany(ledgerEntries);
-    }
+    if (ledgerEntries.length > 0) await Ledger.insertMany(ledgerEntries);
 
     res.status(201).json({
       message: "Stock confirmed, ledger updated, and Product prices synced.",
@@ -191,12 +188,15 @@ export const confirmStockInvoice = async (req, res) => {
 // --------------------
 export const createStockItem = async (req, res) => {
   try {
-    const { name, sku, productId, quantity, costPrice, sellingPrice, wholesalePrice, location } = req.body;
+    const { name, sku, productId, quantity, costPrice, sellingPrice, wholesalePrice, location, supplierId } = req.body;
     const ref = generateReferenceNumber("STK");
 
     if (!name || !sku || quantity === undefined || costPrice === undefined) {
       return res.status(400).json({ success: false, message: "Name, SKU, quantity, and cost price are required." });
     }
+
+    let supplier = null;
+    if (supplierId) supplier = await Supplier.findById(supplierId);
 
     let stock = await Stock.findOne({ sku });
     if (stock) {
@@ -205,13 +205,15 @@ export const createStockItem = async (req, res) => {
       stock.costPrice = costPrice;
       stock.sellingPrice = sellingPrice || stock.sellingPrice;
       stock.wholesalePrice = wholesalePrice || stock.wholesalePrice || 0;
+      stock.supplierId = supplier?._id || stock.supplierId || null;
       stock.referenceNumber = ref;
       stock.date = new Date();
       await stock.save();
     } else {
       stock = await new Stock({
-        productName: name,
+        supplierId: supplier?._id || null,
         productId,
+        productName: name,
         sku,
         quantity,
         stockBalance: quantity,
@@ -224,7 +226,7 @@ export const createStockItem = async (req, res) => {
       }).save();
     }
 
-    // --- Sync to Product table ---
+    // Sync to Product table
     if (productId) {
       await Product.findByIdAndUpdate(productId, {
         costPrice: stock.costPrice,
@@ -232,6 +234,19 @@ export const createStockItem = async (req, res) => {
         wholesalePrice: stock.wholesalePrice || 0,
       });
     }
+
+    await Ledger.create({
+      productId: stock._id,
+      productName: stock.productName,
+      supplierId: supplier?._id || null,
+      quantityAdded: quantity,
+      balanceAfterStock: stock.stockBalance,
+      costPrice: stock.costPrice,
+      sellingPrice: stock.sellingPrice,
+      type: "stock-in",
+      referenceNumber: ref,
+      date: new Date(),
+    });
 
     res.status(stock ? 200 : 201).json({
       success: true,
@@ -244,6 +259,7 @@ export const createStockItem = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error", error: err.message });
   }
 };
+
 // --------------------
 // Get All Stock Items (with supplier info) - Fixed
 // --------------------

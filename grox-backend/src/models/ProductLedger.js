@@ -1,4 +1,4 @@
-// src/models/ProductsLedger.js
+// src/models/ProductLedger.js
 import mongoose from "mongoose";
 
 const productLedgerSchema = mongoose.Schema(
@@ -13,13 +13,21 @@ const productLedgerSchema = mongoose.Schema(
     costPrice: { type: Number }, // optional for sales
     sellingPrice: { type: Number }, // used for sales too
 
-    type: { type: String, enum: ["stock-in", "sale", "opening"], required: true },
+    // Updated enum to include "return"
+    type: { 
+      type: String, 
+      enum: ["stock-in", "sale", "opening", "return"], // ← Added "return"
+      required: true 
+    },
     date: { type: Date, default: Date.now },
 
     // Sales-specific
     quantitySold: { type: Number }, 
     paymentMode: { type: String }, 
     referenceId: { type: mongoose.Schema.Types.ObjectId }, // saleId or purchaseId
+
+    // Extra fields for returns (optional but useful)
+    quantityReturned: { type: Number }, // specifically for return entries
   },
   { timestamps: true }
 );

@@ -3,8 +3,10 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import {
   Users,
   Database,
+  Layers,
   ShoppingCart,
   Truck,
+  CornerUpLeft,
   BarChart,
   Settings,
   LogIn,
@@ -21,6 +23,7 @@ import {
   Printer,
   Star,
   History,
+  Package,
 } from "lucide-react";
 import SidebarLinkGroup from "./SidebarLinkGroup";
 import Swal from "sweetalert2";
@@ -80,7 +83,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
     "/sales/scan-items",
     "/sales/adjust-qty",
     "/sales/coupons",
-    "/sales/payments",
+    "/sales/Returns",
     "/sales/receipt",
   ];
 
@@ -105,6 +108,28 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
         { title: "Edit", icon: <Edit className="w-4 h-4" />, path: "/products/edit" },
         { title: "Categories", icon: <Tag className="w-4 h-4" />, path: "/products/categories" },
         { title: "Expiry", icon: <Percent className="w-4 h-4" />, path: "/products/expiry" },
+        { title: "Ledger", icon: <Percent className="w-4 h-4" />, path: "/products/ledger" },
+      ],
+    },
+    {
+      title: "Procurement",
+      key: "purchase",
+      icon: <ShoppingCart className="w-5 h-5" />,
+      defaultPath: "/purchase/orders",
+      flows: [
+        { title: "Suppliers", icon: <Truck className="w-4 h-4" />, path: "/purchase/suppliers" },
+        { title: "Ledger", icon: <FileText className="w-4 h-4" />, path: "/purchase/ledger" },
+      ],
+    },
+    {
+      title: "Inventory",
+      key: "inventory",
+      icon: <Package className="w-5 h-5" />,
+      defaultPath: "/inventory/stock",
+      flows: [
+        { title: "Stock", icon: <Layers className="w-4 h-4" />, path: "/inventory/stock" },
+        { title: "List", icon: <FileText className="w-4 h-4" />, path: "/inventory/list" },
+        { title: "Stock Balance", icon: <CreditCard className="w-4 h-4" />, path: "/inventory/stockbalance" },
       ],
     },
     {
@@ -115,6 +140,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
       flows: [
         { title: "Scan Items", icon: <Box className="w-4 h-4" />, path: "/sales/scan-items" },
         { title: "Receipt", icon: <Printer className="w-4 h-4" />, path: "/sales/receipt" },
+        { title: "Returns", icon: <CornerUpLeft className="w-4 h-4" />, path: "/sales/returns" },
       ],
     },
     {
@@ -125,8 +151,11 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
       flows: [
         { title: "Sales", icon: <BarChart className="w-4 h-4" />, path: "/reports/sales" },
         { title: "Top Products", icon: <BarChart className="w-4 h-4" />, path: "/reports/top-products" },
-        { title: "Revenue", icon: <BarChart className="w-4 h-4" />, path: "/reports/revenue" },
-        { title: "Cash Drawer", icon: <CreditCard className="w-4 h-4" />, path: "/reports/cash-drawer" },
+        // Only show Revenue to super-admin
+        ...(userRole === "Super-Admin"
+          ? [{ title: "Revenue", icon: <BarChart className="w-4 h-4" />, path: "/reports/revenue" }]
+          : []),
+        { title: "Returns History", icon: <CreditCard className="w-4 h-4" />, path: "/reports/cash-drawer" },
       ],
     },
   ];
@@ -152,9 +181,8 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
     <div className="min-w-fit">
       {/* Sidebar backdrop */}
       <div
-        className={`fixed inset-0 bg-gray-900/30 z-40 lg:hidden transition-opacity duration-200 ${
-          sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
-        }`}
+        className={`fixed inset-0 bg-gray-900/30 z-40 lg:hidden transition-opacity duration-200 ${sidebarOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+          }`}
         aria-hidden="true"
       ></div>
 
@@ -213,11 +241,10 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
                       {/* Parent Link */}
                       <a
                         href="#0"
-                        className={`flex items-center justify-between px-3 py-2 rounded-md border-l-4 transition ${
-                          parentActive
-                            ? "bg-blue-600/20 text-blue-300 font-semibold border-blue-500"
-                            : "text-gray-400 hover:text-white hover:bg-gray-800/70 border-transparent"
-                        }`}
+                        className={`flex items-center justify-between px-3 py-2 rounded-md border-l-4 transition ${parentActive
+                          ? "bg-blue-600/20 text-blue-300 font-semibold border-blue-500"
+                          : "text-gray-400 hover:text-white hover:bg-gray-800/70 border-transparent"
+                          }`}
                         onClick={(e) => {
                           e.preventDefault();
                           handleClick();
@@ -249,10 +276,9 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
                                 end
                                 to={flow.path}
                                 className={({ isActive }) =>
-                                  `flex items-center gap-2 px-2 py-1 rounded-md text-sm border-l-4 transition ${
-                                    isActive
-                                      ? "text-blue-300 bg-blue-600/20 border-blue-500 font-medium"
-                                      : "text-gray-500 hover:text-white hover:bg-gray-800/70 border-transparent"
+                                  `flex items-center gap-2 px-2 py-1 rounded-md text-sm border-l-4 transition ${isActive
+                                    ? "text-blue-300 bg-blue-600/20 border-blue-500 font-medium"
+                                    : "text-gray-500 hover:text-white hover:bg-gray-800/70 border-transparent"
                                   }`
                                 }
                               >

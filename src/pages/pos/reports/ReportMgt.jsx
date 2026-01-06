@@ -15,18 +15,34 @@ function ReportMgt() {
   const { subpage } = useParams();
   const navigate = useNavigate();
 
+  const userRole = localStorage.getItem("role");
+
   // Redirect to /reports/sales if no subpage
   useEffect(() => {
     if (!subpage) {
       navigate("/reports/sales", { replace: true });
     }
-  }, [subpage, navigate]);
+    // If user is not super-admin and tries to access revenue, redirect
+    if (subpage === "revenue" && userRole !== "Super-Admin") {
+      navigate("/reports/sales", { replace: true });
+    }
+  }, [subpage, navigate, userRole]);
 
   const activeTab = subpage || "sales";
 
-  const handleTabChange = (tab) => {
-    navigate(`/reports/${tab}`);
+  const handleTabChange = (tabKey) => {
+    // Prevent non-super-admin from navigating to Revenue
+    if (tabKey === "revenue" && userRole !== "Super-Admin") return;
+    navigate(`/reports/${tabKey}`);
   };
+
+  // Tabs array filtered by role
+  const tabs = [
+    { key: "sales", label: "Sales" },
+    { key: "top-products", label: "Top Products" },
+    ...(userRole === "Super-Admin" ? [{ key: "revenue", label: "Revenue" }] : []),
+    { key: "cash-drawer", label: "Return History" },
+  ];
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -35,7 +51,7 @@ function ReportMgt() {
       case "top-products":
         return <TopProductsReport />;
       case "revenue":
-        return <RevenueReport />;
+        return userRole === "Super-Admin" ? <RevenueReport /> : <SalesReport />;
       case "cash-drawer":
         return <CashDrawerReport />;
       default:
@@ -62,19 +78,14 @@ function ReportMgt() {
                 Reports Management
               </h1>
               <p className="text-gray-400 mt-1">
-                Monitor sales, revenue, product performance, and cash drawer activities.
+                Monitor sales, revenue, product performance, and Retruns history.
               </p>
             </div>
 
             {/* Tabs */}
             <div className="mb-6 border-b border-gray-700">
               <nav className="flex space-x-8 -mb-px">
-                {[
-                  { key: "sales", label: "Sales" },
-                  { key: "top-products", label: "Top Products" },
-                  { key: "revenue", label: "Revenue" },
-                  { key: "cash-drawer", label: "Cash Drawer" },
-                ].map((tab) => (
+                {tabs.map((tab) => (
                   <button
                     key={tab.key}
                     className={`pb-2 text-sm font-medium transition ${

@@ -27,13 +27,16 @@ import CustomersMgt from "./pages/pos/customers/CustomersMgt";
 // Reports Management
 import ReportMgt from "./pages/pos/reports/ReportMgt";
 
+import PurchaseMgt from "./pages/pos/purchase/PurchaseMgt";
+import InventoryMgt from "./pages/pos/inventory/InventoryMgt";
+
 // ====================== ERP SECTION IMPORTS ======================
 import ErpDashboard from "./pages/erp/Dashboard";
 import ErpLogin from "./pages/erp/Login";
 import AccountMgt from "./pages/erp/accounts/AccountMgt";
 import HrMgt from "./pages/erp/hr/HrMgt";
-import PurchaseMgt from "./pages/erp/purchase/PurchaseMgt";
-import InventoryMgt from "./pages/erp/inventory/InventoryMgt";
+//import PurchaseMgt from "./pages/erp/purchase/PurchaseMgt";
+//import InventoryMgt from "./pages/erp/inventory/InventoryMgt";
 import AssetsMgt from "./pages/erp/assets/AssetsMgt";
 import ReportsMgt from "./pages/erp/reports/ReportsMgt";
 import SettingsMgt from "./pages/erp/Settings/SettingsMgt";
@@ -51,11 +54,11 @@ function App() {
   return (
     <Routes>
       {/* ====================== DEFAULT / MENU ====================== */}
-      <Route exact path="/" element={<Menu />} />
+      {/*<Route exact path="/" element={<Menu />} />*/}
+      <Route exact path="/" element={<LoginPage />} />
 
       {/* ====================== POS SECTION ====================== */}
       <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/pos-login" element={<LoginPage />} />
 
       {/* Users Management */}
       <Route path="/users/:subpage" element={<UsersMgt />} />
@@ -81,6 +84,15 @@ function App() {
       <Route path="/reports/:subpage" element={<ReportMgt />} />
       <Route path="/reports" element={<Navigate to="/reports/sales" replace />} />
 
+       {/* POS Inventory Management */}
+      <Route path="/inventory/:subpage" element={<InventoryMgt />} />
+      <Route path="/inventory" element={<Navigate to="/inventory/stock" replace />} />
+
+      {/* POS Purchase Management */}
+      <Route path="/purchase/:subpage" element={<PurchaseMgt />} />
+      <Route path="/purchase" element={<Navigate to="/purchase/orders" replace />} />
+
+
       {/* ====================== ERP SECTION ====================== */}
       <Route path="/erp-dashboard" element={<ErpDashboard />} />
       <Route path="/erp-login" element={<ErpLogin />} />
@@ -93,13 +105,13 @@ function App() {
       <Route path="/erp/hr/:subpage" element={<HrMgt />} />
       <Route path="/erp/hr" element={<Navigate to="/erp/hr/employees" replace />} />
 
-      {/* ERP Inventory Management */}
+      {/* ERP Inventory Management 
       <Route path="/erp/inventory/:subpage" element={<InventoryMgt />} />
-      <Route path="/erp/inventory" element={<Navigate to="/erp/inventory/stock" replace />} />
+      <Route path="/erp/inventory" element={<Navigate to="/erp/inventory/stock" replace />} />*/}
 
-      {/* ERP Purchase Management */}
+      {/* ERP Purchase Management 
       <Route path="/erp/purchase/:subpage" element={<PurchaseMgt />} />
-      <Route path="/erp/purchase" element={<Navigate to="/erp/purchase/orders" replace />} />
+      <Route path="/erp/purchase" element={<Navigate to="/erp/purchase/orders" replace />} />*/}
 
       {/* ERP Assets Management */}
       <Route path="/erp/assets/:subpage" element={<AssetsMgt />} />

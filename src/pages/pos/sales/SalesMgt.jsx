@@ -9,7 +9,7 @@ import Banner from "../../../partials/Banner";
 import ScanItems from "./ScanItems";
 import AdjustQty from "./AdjustQty";
 import Coupons from "./Coupons";
-import Payments from "./Payments";
+import Returns from "./Returns";
 import Receipt from "./Receipt";
 
 function SalesMgt() {
@@ -42,6 +42,8 @@ function SalesMgt() {
         return <ScanItems />;
       case "receipt":
         return <Receipt />;
+      case "returns":
+        return <Returns />;
       default:
         return <ScanItems />;
     }
@@ -76,14 +78,14 @@ function SalesMgt() {
                 Sales Management
               </h1>
               <p className="text-gray-400 mt-1">
-                Manage sales flow: scanning, adjusting, coupons, payments, and receipts.
+                Manage sales flow: scanning, Returns and receipts.
               </p>
             </div>
 
             {/* Tabs */}
             <div className="mb-6 border-b border-gray-700">
               <nav className="flex space-x-8 -mb-px">
-                {["scan-items", "receipt"].map(
+                {["scan-items", "receipt", "returns"].map(
                   (tab) => (
                     <button
                       key={tab}

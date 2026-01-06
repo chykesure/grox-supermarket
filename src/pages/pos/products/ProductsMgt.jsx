@@ -9,6 +9,7 @@ import AddProduct from "./AddProduct";
 import EditProduct from "./EditProduct";
 import Categories from "./Categories";
 import Discounts from "./Discounts";
+import ProductLedger from "./ProductLedger";
 
 function ProductsMgt() {
   const { subpage } = useParams();
@@ -37,6 +38,8 @@ function ProductsMgt() {
         return <Categories />;
       case "discounts":
         return <Discounts />;
+      case "ledger":
+        return <ProductLedger />;
       default:
         return <AddProduct />; // fallback
     }
@@ -61,14 +64,14 @@ function ProductsMgt() {
                 Product Management
               </h1>
               <p className="text-gray-400 mt-1">
-                Manage products, categories, and discounts.
+                Manage products, categories, and expiry.
               </p>
             </div>
 
             {/* Tabs */}
             <div className="mb-6 border-b border-gray-700">
               <nav className="flex space-x-8 -mb-px">
-                {["add", "edit", "categories", "Expiry"].map((tab) => (
+                {["add", "edit", "categories", "Expiry", "ledger"].map((tab) => (
                   <button
                     key={tab}
                     className={`pb-2 text-sm font-medium transition ${

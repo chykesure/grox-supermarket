@@ -1,4 +1,4 @@
-// routes/index.js
+//routes/index.js
 import express from "express";
 const router = express.Router();
 
@@ -10,7 +10,10 @@ import stockRoutes from "./stockRoutes.js";
 import productRoutes from "./productRoutes.js";
 import salesRoutes from "./salesRoutes.js";
 import accountsRoutes from "./accountsRoutes.js";
-
+import reportRoutes from "./reportRoutes.js";
+import productLedgerRoutes from "./productLedgerRoutes.js"; 
+import revenueRoutes from "./revenueRoutes.js"; // <-- ADD THIS
+import returnsRoutes from "./returnsRoutes.js";
 
 
 // Example test route
@@ -26,10 +29,11 @@ router.use("/approvals", approvalRoutes);
 router.use("/stock", stockRoutes);
 router.use("/api", productRoutes);
 router.use("/api/users", accountsRoutes);
-
-// ADD THIS LINE
 router.use("/api/sales", salesRoutes);
+router.use("/api/reports", reportRoutes);
+router.use("/api/product-ledger", productLedgerRoutes);
+router.use("/api/revenue", revenueRoutes); // <-- ADD THIS
+router.use("/api/returns", returnsRoutes);
 
 
-
-export default router; // <-- IMPORTANT
+export default router;
