@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-//import Sidebar from "../../../partials/ErpSidebar";
 import Sidebar from "../../../partials/Sidebar";
 import Header from "../../../partials/Header";
 import Banner from "../../../partials/Banner";
@@ -9,6 +8,7 @@ import Banner from "../../../partials/Banner";
 import StockPage from "./StockPage";
 import TransfersPage from "./TransfersPage";
 import StockList from "./StockList";
+import StockMovement from "./StockMovement"; // ← NEW: import the movement page
 
 const InventoryMgt = () => {
   const { subpage } = useParams();
@@ -35,6 +35,8 @@ const InventoryMgt = () => {
         return <TransfersPage />;
       case "list":
         return <StockList />;
+      case "movements":                    // ← NEW tab case
+        return <StockMovement />;
       default:
         return <StockPage onStockConfirmed={() => setStockRefresh(prev => prev + 1)} />;
     }
@@ -52,31 +54,34 @@ const InventoryMgt = () => {
                 Inventory Management
               </h1>
               <p className="text-gray-400 mt-1">
-                Manage stock, transfers, and inventory adjustments efficiently.
+                Manage stock levels, transfers, movements, and adjustments.
               </p>
             </div>
 
-            {/* Tabs */}
+            {/* Tabs – Added "Movements" */}
             <div className="mb-6 border-b border-gray-700">
-              <nav className="flex space-x-8 -mb-px">
-                {["stock", "list", "stockbalance"].map((tab) => (
+              <nav className="flex space-x-8 -mb-px overflow-x-auto">
+                {["stock", "list", "stockbalance", "movements"].map((tab) => (
                   <button
                     key={tab}
-                    className={`pb-2 text-sm font-medium transition ${
+                    className={`pb-2 px-1 text-sm md:text-base font-medium transition whitespace-nowrap ${
                       activeTab === tab
                         ? "border-b-2 border-emerald-500 text-emerald-400"
                         : "border-b-2 border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-500"
                     }`}
                     onClick={() => handleTabChange(tab)}
                   >
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    {tab === "stock" ? "Stock In/Out" :
+                     tab === "list" ? "Stock List" :
+                     tab === "stockbalance" ? "Balance" :
+                     tab === "movements" ? "Movements" : tab}
                   </button>
                 ))}
               </nav>
             </div>
 
             {/* Tab Content */}
-            <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl shadow-lg border border-gray-700">
+            <div className="bg-gradient-to-br from-gray-800 to-gray-700 p-6 rounded-xl shadow-lg border border-gray-700 min-h-[60vh]">
               {renderTabContent()}
             </div>
           </div>

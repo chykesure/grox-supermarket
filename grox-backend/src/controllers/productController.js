@@ -2,7 +2,8 @@
 import Product from "../models/Product.js";
 import Category from "../models/Category.js";
 import Discount from "../models/Discount.js";
-
+import ProductLedger from "../models/ProductLedger.js";   // ← ADD THIS LINE
+import Ledger from "../models/Ledger.js";
 // ------------------ Products ------------------
 
 export const addProduct = async (req, res) => {
@@ -65,11 +66,36 @@ export const addProduct = async (req, res) => {
     }
 };
 
+/*
 export const getProducts = async (req, res) => {
     try {
         const products = await Product.find().sort({ name: 1 });
         res.json(products);
     } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+};*/
+
+export const getProducts = async (req, res) => {
+    try {
+        const products = await Product.find().sort({ name: 1 }).lean();
+
+        const productsWithStock = await Promise.all(
+            products.map(async (product) => {
+                const latest = await Ledger.findOne({ productId: product._id })
+                    .sort({ createdAt: -1 })
+                    .lean();
+
+                return {
+                    ...product,
+                    currentStock: latest ? latest.balanceAfterStock : 0,
+                };
+            })
+        );
+
+        res.json(productsWithStock);
+    } catch (err) {
+        console.error("Error in getProducts:", err);
         res.status(500).json({ message: err.message });
     }
 };

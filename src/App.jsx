@@ -84,7 +84,7 @@ function App() {
       <Route path="/reports/:subpage" element={<ReportMgt />} />
       <Route path="/reports" element={<Navigate to="/reports/sales" replace />} />
 
-       {/* POS Inventory Management */}
+      {/* POS Inventory Management */}
       <Route path="/inventory/:subpage" element={<InventoryMgt />} />
       <Route path="/inventory" element={<Navigate to="/inventory/stock" replace />} />
 
@@ -120,7 +120,7 @@ function App() {
       {/* ERP Reports Management */}
       <Route path="/erp/reports/:subpage" element={<ReportsMgt />} />
       <Route path="/erp/reports" element={<Navigate to="/erp/reports/summary" replace />} />
-      
+
       {/* ERP Setting Management */}
       <Route path="/erp/settings/:subpage" element={<SettingsMgt />} />
       <Route path="/erp/settings" element={<Navigate to="/erp/settings/roles" replace />} />

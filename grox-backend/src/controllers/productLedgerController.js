@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Ledger from "../models/Ledger.js";
 import Product from "../models/Product.js";
 import Sale from "../models/Sale.js";
+import StockMovement from "../models/StockMovement.js"; // ← NEW: import StockMovement
 
 export const getProductLedger = async (req, res) => {
   try {
@@ -15,14 +16,15 @@ export const getProductLedger = async (req, res) => {
     // Decode URL encoding (e.g., %20 → space, + → space)
     productName = decodeURIComponent(productName.trim());
 
-    // Normalize: trim, collapse spaces, lowercase for comparison
+    // Normalize function (your existing logic – kept intact)
     const normalize = (str) => {
       if (!str) return "";
-      return str.toString()
+      return str
+        .toString()
         .trim()
-        .replace(/\s+/g, " ")                    // collapse spaces
-        .replace(/\s*[\*xX]\s*\d+.*/g, "")       // REMOVE everything from * or x followed by number to end
-        .replace(/\s*[\*xX]\s*/g, " ")           // cleanup any leftover * x
+        .replace(/\s+/g, " ")
+        .replace(/\s*[\*xX]\s*\d+.*/g, "")
+        .replace(/\s*[\*xX]\s*/g, " ")
         .trim()
         .toLowerCase();
     };
@@ -32,7 +34,7 @@ export const getProductLedger = async (req, res) => {
     console.log("Incoming productName (decoded):", productName);
     console.log("Normalized incoming:", incomingNormalized);
 
-    // 1. Find product (tolerant)
+    // Find product (tolerant matching)
     const product = await Product.findOne({
       $or: [
         { name: { $regex: `^${productName}$`, $options: "i" } },
@@ -48,12 +50,13 @@ export const getProductLedger = async (req, res) => {
     console.log("Product found in DB:", product.name);
     console.log("Product normalized:", productNormalized);
 
-    // 2. Build base filter for Ledger
+    // ──────────────────────────────────────────────
+    // 1. Ledger entries (stock-in + returns)
+    // ──────────────────────────────────────────────
     const ledgerFilter = {
       type: { $in: ["stock-in", "return"] },
     };
 
-    // Supplier filter
     if (supplierId && supplierId !== "null" && supplierId !== "undefined" && supplierId !== "") {
       if (mongoose.Types.ObjectId.isValid(supplierId)) {
         ledgerFilter.supplierId = new mongoose.Types.ObjectId(supplierId);
@@ -62,23 +65,20 @@ export const getProductLedger = async (req, res) => {
       ledgerFilter.supplierId = null;
     }
 
-    // Fetch all relevant ledger entries + populate supplier
     const allStockEntries = await Ledger.find(ledgerFilter)
       .populate("supplierId", "name")
       .sort({ date: 1 });
 
-    // Filter in memory using normalized productName
     const stockAndReturns = allStockEntries.filter((entry) => {
       const entryNormalized = normalize(entry.productName);
       return entryNormalized === productNormalized;
     });
 
-    console.log(`✅ FOUND ${stockAndReturns.length} matching IN entries (stock-in/return)`);
+    console.log(`Found ${stockAndReturns.length} matching IN/RETURN entries`);
 
-    // Map to ledger format
     const ledgerEntries = stockAndReturns.map((entry) => ({
       date: entry.date,
-      type: "IN",
+      type: entry.type === "return" ? "RETURN" : "IN",
       referenceNumber: entry.referenceNumber || entry._id.toString(),
       supplierName: entry.supplierId?.name || "—",
       cashier: entry.processedBy || "—",
@@ -86,10 +86,13 @@ export const getProductLedger = async (req, res) => {
       quantityOut: 0,
       costPrice: entry.costPrice || 0,
       sellingPrice: entry.sellingPrice || 0,
-      note: entry.type === "stock-in" ? "Stock Received" : "Return",
+      reason: entry.type === "stock-in" ? "Stock Received" : "Return processed",
+      balance: 0, // will be calculated later
     }));
 
-    // 3. Sales - normalize in memory
+    // ──────────────────────────────────────────────
+    // 2. Sales (OUT from completed sales)
+    // ──────────────────────────────────────────────
     const sales = await Sale.find({
       status: { $in: ["completed", "partially returned", "fully refunded"] },
     }).sort({ date: 1 });
@@ -112,24 +115,56 @@ export const getProductLedger = async (req, res) => {
           quantityOut: item.quantity || 0,
           costPrice: 0,
           sellingPrice: item.price || item.sellingPrice || 0,
-          note: "Sale",
+          reason: "Sale / Customer purchase",
+          balance: 0,
         });
       }
     }
 
-    // 4. Sort all entries by date
+    // ──────────────────────────────────────────────
+    // 3. NEW: Stock-outs from StockMovement
+    // ──────────────────────────────────────────────
+    const stockOuts = await StockMovement.find({
+      product: product._id,
+      type: "out",
+    }).sort({ createdAt: -1 });
+
+    for (const mov of stockOuts) {
+      ledgerEntries.push({
+        date: mov.createdAt,
+        type: "OUT",
+        referenceNumber: mov.reference || "Stock Issue",
+        supplierName: "—",
+        cashier: mov.recordedBy || "System",
+        quantityIn: 0,
+        quantityOut: mov.quantity,
+        costPrice: 0,
+        sellingPrice: 0,
+        reason: mov.reason || "Stock consumption / issue",
+        balance: 0,
+      });
+    }
+
+    // ──────────────────────────────────────────────
+    // 4. Sort all entries by date (oldest → newest)
+    // ──────────────────────────────────────────────
     ledgerEntries.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-    // 5. Running balance
+    // ──────────────────────────────────────────────
+    // 5. Calculate running balance
+    // ──────────────────────────────────────────────
     let runningBalance = 0;
     const finalLedger = ledgerEntries.map((entry) => {
       runningBalance += entry.quantityIn - entry.quantityOut;
       return { ...entry, balance: runningBalance };
     });
 
+    // Current stock should match the last balance (or use Stock model if needed)
+    const currentStock = runningBalance;
+
     return res.json({
       product: product.name,
-      currentStock: runningBalance,
+      currentStock,
       ledger: finalLedger,
     });
   } catch (err) {

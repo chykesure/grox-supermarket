@@ -24,6 +24,7 @@ import {
   Star,
   History,
   Package,
+  ArrowUpDown,
 } from "lucide-react";
 import SidebarLinkGroup from "./SidebarLinkGroup";
 import Swal from "sweetalert2";
@@ -127,8 +128,9 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
       icon: <Package className="w-5 h-5" />,
       defaultPath: "/inventory/stock",
       flows: [
-        { title: "Stock", icon: <Layers className="w-4 h-4" />, path: "/inventory/stock" },
-        { title: "List", icon: <FileText className="w-4 h-4" />, path: "/inventory/list" },
+        { title: "Stock In/Out", icon: <Layers className="w-4 h-4" />, path: "/inventory/stock" },
+        { title: "Movements", icon: <ArrowUpDown className="w-4 h-4" />, path: "/inventory/movements" },
+        { title: "Stock List", icon: <FileText className="w-4 h-4" />, path: "/inventory/list" },
         { title: "Stock Balance", icon: <CreditCard className="w-4 h-4" />, path: "/inventory/stockbalance" },
       ],
     },
@@ -143,6 +145,24 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
         { title: "Returns", icon: <CornerUpLeft className="w-4 h-4" />, path: "/sales/returns" },
       ],
     },
+
+    // ────────────────────────────────────────────────
+    // NEW: Customers module (your requested addition)
+    // ────────────────────────────────────────────────
+    {
+      title: "Customers",
+      key: "customers",
+      icon: <Users className="w-5 h-5" />,   // or <WalletCards /> if you imported it
+      defaultPath: "/customers/add",
+      flows: [
+        { title: "Add / View", icon: <PlusSquare className="w-4 h-4" />, path: "/customers/add" },
+        { title: "History / Ledger", icon: <History className="w-4 h-4" />, path: "/customers/history" },
+        { title: "Loyalty", icon: <Star className="w-4 h-4" />, path: "/customers/loyalty" },
+        // You can add more later, e.g.
+        // { title: "Credit Sales", icon: <CreditCard className="w-4 h-4" />, path: "/customers/credits" },
+      ],
+    },
+
     {
       title: "Reports",
       key: "reports",
@@ -151,7 +171,6 @@ function Sidebar({ sidebarOpen, setSidebarOpen, variant = "default" }) {
       flows: [
         { title: "Sales", icon: <BarChart className="w-4 h-4" />, path: "/reports/sales" },
         { title: "Top Products", icon: <BarChart className="w-4 h-4" />, path: "/reports/top-products" },
-        // Only show Revenue to super-admin
         ...(userRole === "Super-Admin"
           ? [{ title: "Revenue", icon: <BarChart className="w-4 h-4" />, path: "/reports/revenue" }]
           : []),

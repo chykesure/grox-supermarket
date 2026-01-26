@@ -14,11 +14,13 @@ import reportRoutes from "./reportRoutes.js";
 import productLedgerRoutes from "./productLedgerRoutes.js"; 
 import revenueRoutes from "./revenueRoutes.js"; // <-- ADD THIS
 import returnsRoutes from "./returnsRoutes.js";
+import customerRoutes from "./customerRoutes.js";
+import stockMovementRoutes from './stockMovementRoutes.js';
 
 
 // Example test route
 router.get("/test", (req, res) => {
-  res.json({ message: "Grox API working successfully!" });
+  res.json({ message: "API working successfully!" });
 });
 
 // Mount existing routes
@@ -34,6 +36,8 @@ router.use("/api/reports", reportRoutes);
 router.use("/api/product-ledger", productLedgerRoutes);
 router.use("/api/revenue", revenueRoutes); // <-- ADD THIS
 router.use("/api/returns", returnsRoutes);
+router.use("/api/customers", customerRoutes);
+router.use('/api/stocks', stockMovementRoutes);
 
 
 export default router;

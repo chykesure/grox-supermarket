@@ -1,211 +1,242 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
 
 function RevenueReport() {
-  const [revenueData, setRevenueData] = useState([]);
-  const [returnData, setReturnData] = useState([]);
+  const [summaryTotals, setSummaryTotals] = useState({
+    sales: 0,
+    cost: 0,
+    returns: 0,
+    netSales: 0,
+    grossProfit: 0,
+    netProfit: 0,
+  });
+
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [selectedPeriod, setSelectedPeriod] = useState("all");
 
-  // -----------------------------
-  // Fetch revenue and returns data
-  // -----------------------------
+  // Fetch both revenue and returns (filtered by date when provided)
+  const fetchData = async (start = "", end = "") => {
+    setLoading(true);
+    try {
+      const params = {};
+      if (start) params.startDate = start;
+      if (end) params.endDate = end;
+
+      // 1. Revenue totals (already handles date filtering in backend)
+      const revenueRes = await axios.get("http://localhost:8080/api/revenue", { params });
+      const revenueTotals = revenueRes.data.totals || {
+        sales: 0,
+        cost: 0,
+        returns: 0, // we will override this
+        netSales: 0,
+        grossProfit: 0,
+        netProfit: 0,
+      };
+
+      // 2. Filtered returns from /api/returns
+      const returnsRes = await axios.get("http://localhost:8080/api/returns", { params });
+      const returnsData = returnsRes.data.data || [];
+
+      // Calculate accurate returns total from filtered records
+      const calculatedReturns = returnsData.reduce((sum, record) => {
+        return sum + (Number(record.totalRefund) || 0);
+      }, 0);
+
+      // Merge: keep revenue numbers, but use real filtered returns
+      setSummaryTotals({
+        ...revenueTotals,
+        returns: Number(calculatedReturns.toFixed(2)),
+      });
+
+    } catch (error) {
+      console.error("Error fetching report:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      try {
-        const [revRes, retRes] = await Promise.all([
-          axios.get("http://localhost:8080/api/revenue"),
-          axios.get("http://localhost:8080/api/returns"),
-        ]);
-
-        setRevenueData(revRes.data || []);
-        setReturnData(retRes.data.data || []);
-      } catch (error) {
-        console.error("Error fetching data:", error);
-        setRevenueData([]);
-        setReturnData([]);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchData();
   }, []);
 
-  // -----------------------------
-  // Helper: format currency
-  // -----------------------------
-  const formatCurrency = (amount) =>
-    "₦" + (amount || 0).toLocaleString("en-NG", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // Quick period selection logic
+  const setPeriod = (period) => {
+    setSelectedPeriod(period);
 
-  // -----------------------------
-  // Filter revenue & returns by date
-  // -----------------------------
-  const filteredRevenueData = revenueData
-    .map((row) => {
-      const rowDate = new Date(row.date);
+    const now = new Date();
+    let start = null;
+    const end = now;
 
-      // Apply date filter to revenue row
-      if (startDate || endDate) {
-        const start = startDate ? new Date(startDate) : new Date(0);
-        const end = endDate ? new Date(endDate) : new Date();
-        end.setHours(23, 59, 59, 999);
-        if (rowDate < start || rowDate > end) return null;
-      }
+    switch (period) {
+      case "day":
+        start = new Date(now);
+        break;
+      case "week":
+        const dayOfWeek = now.getDay();
+        start = new Date(now);
+        start.setDate(now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1));
+        break;
+      case "month":
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case "2month":
+        start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        break;
+      case "3month":
+        start = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+        break;
+      default:
+        start = null;
+    }
 
-      // Filter returns for this period within same date range
-      const periodReturns = returnData.filter((r) => {
-        const rDate = new Date(r.date);
-        if (startDate || endDate) {
-          const start = startDate ? new Date(startDate) : new Date(0);
-          const end = endDate ? new Date(endDate) : new Date();
-          end.setHours(23, 59, 59, 999);
-          return rDate >= start && rDate <= end;
-        }
-        return true;
-      });
-
-      const totalReturns = periodReturns.reduce((sum, r) => sum + (r.totalRefund || 0), 0);
-
-      return {
-        ...row,
-        returns: totalReturns,
-        netSales: row.sales - totalReturns,
-        netProfit: row.profit - totalReturns,
-      };
-    })
-    .filter(Boolean); // remove nulls
-
-  // -----------------------------
-  // Totals for summary cards
-  // -----------------------------
-  const totals = filteredRevenueData.reduce(
-    (acc, row) => {
-      acc.sales += row.sales;
-      acc.cost += row.cost;
-      acc.profit += row.profit;
-      acc.returns += row.returns;
-      acc.netSales += row.netSales;
-      acc.netProfit += row.netProfit;
-      return acc;
-    },
-    { sales: 0, cost: 0, profit: 0, returns: 0, netSales: 0, netProfit: 0 }
-  );
-
-  // -----------------------------
-  // Export to Excel
-  // -----------------------------
-  const exportToExcel = () => {
-    const data = filteredRevenueData.map((row) => ({
-      Period: row.period,
-      "Sales (₦)": row.sales,
-      "Cost (₦)": row.cost,
-      "Profit (₦)": row.profit,
-      "Returns (₦)": row.returns,
-      "Net Sales (₦)": row.netSales,
-      "Net Profit (₦)": row.netProfit,
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Revenue Report");
-    XLSX.writeFile(workbook, "revenue_report.xlsx");
+    if (start) {
+      const s = start.toISOString().split("T")[0];
+      const e = end.toISOString().split("T")[0];
+      setStartDate(s);
+      setEndDate(e);
+      fetchData(s, e);
+    } else {
+      setStartDate("");
+      setEndDate("");
+      fetchData();
+    }
   };
 
-  // -----------------------------
-  // Export to PDF
-  // -----------------------------
-  const exportToPDF = () => {
-    const doc = new jsPDF();
-    doc.text("Revenue Report", 14, 15);
-
-    doc.autoTable({
-      startY: 20,
-      head: [["Period", "Sales (₦)", "Cost (₦)", "Profit (₦)", "Returns (₦)", "Net Sales (₦)", "Net Profit (₦)"]],
-      body: filteredRevenueData.map((row) => [
-        row.period,
-        formatCurrency(row.sales),
-        formatCurrency(row.cost),
-        formatCurrency(row.profit),
-        formatCurrency(row.returns),
-        formatCurrency(row.netSales),
-        formatCurrency(row.netProfit),
-      ]),
+  const formatCurrency = (amount) =>
+    "₦" + Number(amount || 0).toLocaleString("en-NG", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     });
 
-    doc.text(
-      `Totals → Sales: ${formatCurrency(totals.sales)} | Returns: ${formatCurrency(totals.returns)} | Net Sales: ${formatCurrency(totals.netSales)}`,
-      14,
-      doc.lastAutoTable.finalY + 10
-    );
+  // Prepare single summary row
+  const getTableData = () => {
+    let periodLabel = "All Time";
+    let dateLabel = "—";
 
-    doc.save("revenue_report.pdf");
+    if (startDate || endDate) {
+      switch (selectedPeriod) {
+        case "day": periodLabel = "Today"; break;
+        case "week": periodLabel = "This Week"; break;
+        case "month": periodLabel = "This Month"; break;
+        case "2month": periodLabel = "Last 2 Months"; break;
+        case "3month": periodLabel = "Last 3 Months"; break;
+        default: periodLabel = "Custom Range";
+      }
+      dateLabel = startDate && endDate ? `${startDate} → ${endDate}` : (startDate || endDate || "—");
+    }
+
+    return [{
+      period: periodLabel,
+      date: dateLabel,
+      sales: summaryTotals.sales,
+      cost: summaryTotals.cost,
+      profit: summaryTotals.grossProfit || summaryTotals.netSales,
+      returns: summaryTotals.returns,
+      netProfit: summaryTotals.netProfit,
+    }];
   };
 
-  // -----------------------------
-  // UI
-  // -----------------------------
-  if (loading) return <div className="py-12 text-center text-gray-400">Loading revenue...</div>;
-  if (revenueData.length === 0) return <div className="py-12 text-center text-gray-500">No revenue data</div>;
+  const tableData = getTableData();
+
+  if (loading) {
+    return <div className="p-10 text-center text-blue-500 text-xl">Loading report...</div>;
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Header & Filters */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <div className="p-6 min-h-screen bg-gray-900 text-gray-100">
+      {/* Header & Controls */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6 bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg">
         <div>
-          <h2 className="text-2xl font-bold text-blue-500">💰 Revenue Report</h2>
-          <p className="text-gray-400 text-sm">Track sales, cost, profit & returns. Filter by date range.</p>
+          <h1 className="text-3xl font-bold text-blue-400">💰 Revenue Report</h1>
+          <p className="text-gray-400 mt-1">
+            {startDate || endDate
+              ? `From ${startDate || "—"} to ${endDate || "now"}`
+              : "Showing all available data"}
+          </p>
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="px-3 py-2 rounded-lg text-gray-700" />
-          <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="px-3 py-2 rounded-lg text-gray-700" />
-          <button onClick={() => { setStartDate(""); setEndDate(""); }} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded text-sm">
-            Reset
-          </button>
-          <button onClick={exportToExcel} className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm font-medium shadow">
-            Export Excel
-          </button>
-          <button onClick={exportToPDF} className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-medium shadow">
-            Export PDF
-          </button>
+        <div className="flex flex-col gap-4 w-full md:w-auto">
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setPeriod("day")} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">Today</button>
+            <button onClick={() => setPeriod("week")} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">This Week</button>
+            <button onClick={() => setPeriod("month")} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">This Month</button>
+            <button onClick={() => setPeriod("2month")} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">Last 2 Months</button>
+            <button onClick={() => setPeriod("3month")} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition">Last 3 Months</button>
+          </div>
+
+          <div className="flex flex-wrap gap-3 items-center bg-gray-700 p-3 rounded-lg">
+            <span className="text-sm text-gray-300">From</span>
+            <input
+              type="date"
+              value={startDate}
+              onChange={(e) => { setStartDate(e.target.value); setSelectedPeriod("custom"); }}
+              className="bg-gray-600 px-3 py-2 rounded text-white text-sm border border-gray-500 focus:outline-none focus:border-blue-500"
+            />
+            <span className="text-sm text-gray-300">To</span>
+            <input
+              type="date"
+              value={endDate}
+              onChange={(e) => { setEndDate(e.target.value); setSelectedPeriod("custom"); }}
+              className="bg-gray-600 px-3 py-2 rounded text-white text-sm border border-gray-500 focus:outline-none focus:border-blue-500"
+            />
+            <button onClick={() => fetchData(startDate, endDate)} className="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded text-white transition">Apply</button>
+            <button onClick={() => { setStartDate(""); setEndDate(""); setSelectedPeriod("all"); fetchData(); }} className="bg-red-600 hover:bg-red-500 px-4 py-2 rounded text-white transition">Reset</button>
+          </div>
         </div>
       </div>
 
-     
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+        <div className="bg-gray-800 p-6 rounded-xl border-l-4 border-blue-500 shadow-md">
+          <p className="text-gray-400 text-sm uppercase font-semibold tracking-wide">TOTAL SALES</p>
+          <p className="text-4xl font-bold mt-2">{formatCurrency(summaryTotals.sales)}</p>
+        </div>
+
+        <div className="bg-gray-800 p-6 rounded-xl border-l-4 border-red-500 shadow-md">
+          <p className="text-gray-400 text-sm uppercase font-semibold tracking-wide">TOTAL RETURNS</p>
+          <p className="text-4xl font-bold mt-2 text-red-400">{formatCurrency(summaryTotals.returns)}</p>
+        </div>
+
+        <div className="bg-gray-800 p-6 rounded-xl border-l-4 border-green-500 shadow-md">
+          <p className="text-gray-400 text-sm uppercase font-semibold tracking-wide">NET PROFIT</p>
+          <p className={`text-4xl font-bold mt-2 ${summaryTotals.netProfit >= 0 ? "text-green-400" : "text-red-500"}`}>
+            {formatCurrency(summaryTotals.netProfit)}
+          </p>
+        </div>
+      </div>
 
       {/* Table */}
-      <div className="bg-gray-900 rounded-2xl shadow overflow-hidden">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="bg-gray-800 text-gray-300 text-sm">
-              <th className="px-4 py-3 text-left">Period</th>
-              <th className="px-4 py-3 text-right">Sales (₦)</th>
-              <th className="px-4 py-3 text-right">Cost (₦)</th>
-              <th className="px-4 py-3 text-right">Profit (₦)</th>
-              <th className="px-4 py-3 text-right">Returns (₦)</th>
-              <th className="px-4 py-3 text-right">Net Sales (₦)</th>
-              <th className="px-4 py-3 text-right">Net Profit (₦)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredRevenueData.map((row, i) => (
-              <tr key={i} className="border-b border-gray-700 hover:bg-gray-800/60">
-                <td className="px-4 py-3 text-gray-200">{row.period}</td>
-                <td className="px-4 py-3 text-right text-gray-300">{formatCurrency(row.sales)}</td>
-                <td className="px-4 py-3 text-right text-red-400">{formatCurrency(row.cost)}</td>
-                <td className="px-4 py-3 text-right text-green-400">{formatCurrency(row.profit)}</td>
-                <td className="px-4 py-3 text-right text-yellow-400">{formatCurrency(row.returns)}</td>
-                <td className="px-4 py-3 text-right text-gray-200">{formatCurrency(row.netSales)}</td>
-                <td className="px-4 py-3 text-right text-gray-200">{formatCurrency(row.netProfit)}</td>
+      <div className="bg-gray-800 rounded-xl overflow-hidden border border-gray-700 shadow-lg">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left min-w-[900px]">
+            <thead className="bg-gray-700 text-gray-300 text-sm uppercase tracking-wider">
+              <tr>
+                <th className="p-5">PERIOD</th>
+                <th className="p-5">DATE RANGE</th>
+                <th className="p-5 text-right">SALES</th>
+                <th className="p-5 text-right">COST</th>
+                <th className="p-5 text-right">PROFIT</th>
+                <th className="p-5 text-right">RETURNS</th>
+                <th className="p-5 text-right">NET PROFIT</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-700 text-base">
+              {tableData.map((row, idx) => (
+                <tr key={idx} className="hover:bg-gray-750 transition-colors">
+                  <td className="p-5 font-medium">{row.period}</td>
+                  <td className="p-5">{row.date}</td>
+                  <td className="p-5 text-right">{formatCurrency(row.sales)}</td>
+                  <td className="p-5 text-right">{formatCurrency(row.cost)}</td>
+                  <td className="p-5 text-right">{formatCurrency(row.profit)}</td>
+                  <td className="p-5 text-right text-red-400">{formatCurrency(row.returns)}</td>
+                  <td className="p-5 text-right font-bold">{formatCurrency(row.netProfit)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

@@ -6,6 +6,9 @@ import Product from "../models/Product.js";
 import ProductLedger from "../models/ProductLedger.js";
 import Counter from "../models/Counter.js";
 
+import Customer from "../models/Customer.js";
+import CustomerLedger from "../models/CustomerLedger.js";
+
 
 // 🔢 Atomic invoice number generator (SAFE for multi-POS)
 const getNextInvoiceNumber = async () => {
@@ -23,7 +26,7 @@ const getNextInvoiceNumber = async () => {
 // Create Sale (Safe, avoids duplicate invoices)
 // -----------------------------
 export const createSale = asyncHandler(async (req, res) => {
-  const { items, paymentMode, cashier } = req.body;
+  const { items, paymentMode, cashier, customerId } = req.body; // ← added customerId
 
   if (!items || items.length === 0) {
     res.status(400);
@@ -38,10 +41,10 @@ export const createSale = asyncHandler(async (req, res) => {
   // Generate sequential invoice number
   const invoiceNumber = await getNextInvoiceNumber();
 
-  // Check if invoice already exists
+  // Check for duplicate invoice (already good)
   const existingSale = await Sale.findOne({ invoiceNumber });
   if (existingSale) {
-    res.status(409); // Conflict
+    res.status(409);
     throw new Error(`Sale with invoice number ${invoiceNumber} already exists`);
   }
 
@@ -54,13 +57,11 @@ export const createSale = asyncHandler(async (req, res) => {
       throw new Error("Each item must have productId and price");
     }
 
-    // Calculate actual quantity
     let actualQuantity = Number(item.quantity);
     if (item.type === "wholesale" && item.packCount && item.itemsPerPack) {
       actualQuantity = item.packCount * item.itemsPerPack;
     }
 
-    // Calculate subtotal
     const subtotal =
       item.type === "wholesale"
         ? (item.packCount || 0) * (item.wholesalePrice || 0)
@@ -80,6 +81,20 @@ export const createSale = asyncHandler(async (req, res) => {
     });
   }
 
+  // Optional: Validate customerId if provided
+  let customer = null;
+  if (customerId) {
+    customer = await Customer.findById(customerId);
+    if (!customer) {
+      res.status(400);
+      throw new Error("Invalid customer ID");
+    }
+    // Optional future check: credit limit
+    // if (customer.currentBalance + total > customer.creditLimit) {
+    //   throw new Error("Credit limit exceeded");
+    // }
+  }
+
   // Create Sale record
   const sale = await Sale.create({
     invoiceNumber,
@@ -87,11 +102,12 @@ export const createSale = asyncHandler(async (req, res) => {
     total,
     paymentMode,
     cashier,
+    customer: customerId || null, // ← save reference (new)
   });
 
   const ledgerEntries = [];
 
-  // Update stock and create ledger entries
+  // Update stock and product ledger (your existing logic)
   for (const item of saleItems) {
     const stock = await Stock.findOne({ productId: item.productId });
     const product = await Product.findById(item.productId);
@@ -125,6 +141,26 @@ export const createSale = asyncHandler(async (req, res) => {
     await ProductLedger.insertMany(ledgerEntries);
   }
 
+  // New: Customer ledger entry (only if customer selected)
+  if (customerId) {
+    const customerLedgerEntry = new CustomerLedger({
+      customer: customerId,
+      date: new Date(),
+      type: "sale",
+      description: `Sale - Invoice #${invoiceNumber}`,
+      reference: invoiceNumber,
+      debit: total,      // customer owes us more
+      credit: 0,
+    });
+
+    await customerLedgerEntry.save();
+
+    // Update customer's currentBalance (increases owed amount)
+    await Customer.findByIdAndUpdate(customerId, {
+      $inc: { currentBalance: total },
+    });
+  }
+
   res.status(201).json({
     message: "Sale recorded successfully",
     saleId: sale._id,
@@ -138,29 +174,41 @@ export const createSale = asyncHandler(async (req, res) => {
 export const getSaleByInvoice = async (req, res) => {
   try {
     const { invoiceNumber } = req.params;
-    const sale = await Sale.findOne({ invoiceNumber }).lean();
 
-    if (!sale) return res.status(404).json({ message: "Sale not found" });
+    const sale = await Sale.findOne({ invoiceNumber })
+      .populate({
+        path: 'customer',
+        select: 'name phone address balance'  // only what you need
+      })
+      .populate({
+        path: 'items.productId',
+        select: 'name sku barcode sellingPrice wholesalePrice' // optional but useful
+      })
+      .lean();
 
-    let newTotal = 0; // <--- new total after recalculating wholesale
+    if (!sale) {
+      return res.status(404).json({ message: "Sale not found" });
+    }
 
+    // Recalculate totals properly (your existing logic + safety)
+    let newTotal = 0;
     const itemsWithNames = await Promise.all(
       sale.items.map(async (item) => {
-        const product = await Product.findById(item.productId).lean();
+        // Use populated product if available, fallback to stored name
+        const productName = item.productId?.name || item.productName || "Unknown Product";
 
         let calculatedSubtotal = item.subtotal;
 
-        // 🔥 Wholesale calculation
+        // Wholesale adjustment (your existing logic)
         if (item.type === "wholesale") {
           calculatedSubtotal = item.price * item.quantity;
         }
 
-        // add to total
         newTotal += calculatedSubtotal;
 
         return {
-          productId: item.productId,
-          productName: product ? product.name : "Unknown Product",
+          productId: item.productId?._id || item.productId,
+          productName,
           quantity: item.quantity,
           price: item.price,
           subtotal: calculatedSubtotal,
@@ -171,22 +219,21 @@ export const getSaleByInvoice = async (req, res) => {
       })
     );
 
-    // 🔥 overwrite sale.total with new calculated total
-    const updatedTotal = newTotal;
-
     res.json({
       _id: sale._id,
       invoiceNumber: sale.invoiceNumber,
       items: itemsWithNames,
-      total: updatedTotal, // <-- frontend will now show NEW correct amount
+      total: newTotal,               // use recalculated total
       paymentMode: sale.paymentMode,
       date: sale.date,
-      status: sale.status,
       cashier: sale.cashier,
+      customer: sale.customer || null,   // ← now has name, phone, etc.
+      status: sale.status,
+      createdAt: sale.createdAt,
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: err.message });
+    res.status(500).json({ message: err.message || "Server error" });
   }
 };
 

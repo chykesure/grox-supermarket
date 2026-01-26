@@ -4,8 +4,21 @@ import Sale from "../models/Sale.js";
 import Stock from "../models/Stock.js";
 import Ledger from "../models/Ledger.js";
 import ProductLedger from "../models/ProductLedger.js";
-import Return from "../models/SalesReturn.js"; // ← Correct model name
+import Return from "../models/SalesReturn.js";
 import Product from "../models/Product.js";
+
+// Helper functions for consistent date ranges
+const startOfDay = (date) => {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+};
+
+const endOfDay = (date) => {
+  const d = new Date(date);
+  d.setHours(23, 59, 59, 999);
+  return d;
+};
 
 // -----------------------------
 // Fetch sale by invoice + calculate remaining returnable
@@ -153,7 +166,7 @@ export const createReturn = asyncHandler(async (req, res) => {
 
     const newBalance = stock.quantity;
 
-      await Ledger.create({
+    await Ledger.create({
       productId: item.productId,
       productName: item.productName,
       supplierId: null,
@@ -162,11 +175,9 @@ export const createReturn = asyncHandler(async (req, res) => {
       costPrice: stock.costPrice || 0,
       sellingPrice: item.price,
       referenceNumber: sale.invoiceNumber,
-      type: "return", // ← DO NOT use "stock-in"
+      type: "return",
       date: new Date(),
     });
-
-
 
     // ProductLedger entry
     await ProductLedger.create({
@@ -233,10 +244,28 @@ export const getReturnsBySale = asyncHandler(async (req, res) => {
 });
 
 // -----------------------------
-// Get ALL Returns – Used for Return Items History Report
+// Get ALL Returns – Used for Return Items History Report + Revenue Report
+// NOW SUPPORTS DATE FILTERING
 // -----------------------------
 export const getAllReturns = asyncHandler(async (req, res) => {
-  const returns = await Return.find({})
+  const { startDate, endDate } = req.query;
+
+  const query = {};
+
+  // Apply date range filter if provided
+  if (startDate || endDate) {
+    query.date = {};
+
+    if (startDate) {
+      query.date.$gte = startOfDay(new Date(startDate));
+    }
+
+    if (endDate) {
+      query.date.$lte = endOfDay(new Date(endDate));
+    }
+  }
+
+  const returns = await Return.find(query)
     .sort({ date: -1 })
     .lean();
 

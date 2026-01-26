@@ -19,7 +19,7 @@ function ProductLedger() {
     const fetchProducts = async () => {
       try {
         const res = await axios.get("http://localhost:8080/api/products");
-        setProducts(res.data);
+        setProducts(res.data || []);
         if (res.data.length > 0 && !selectedProduct) {
           setSelectedProduct(res.data[0].name);
         }
@@ -31,7 +31,7 @@ function ProductLedger() {
     fetchProducts();
   }, []);
 
-  // Fetch ledger
+  // Fetch ledger when product is selected
   useEffect(() => {
     if (!selectedProduct) return;
 
@@ -58,54 +58,94 @@ function ProductLedger() {
   const productName = ledgerData?.product || selectedProduct;
   const currentStock = ledgerData?.currentStock || 0;
 
-  // --- Safe filtering for supplier and date ---
+  // Filter logic
   const filteredLedger = ledger.filter((row) => {
-    // Supplier filter: include stock-in/returns with empty supplierName
     const supplierMatch = selectedSupplier
       ? row.supplierName === selectedSupplier || row.supplierName === "—"
       : true;
 
-    // Start date filter
-    const startDateMatch = startDate
-      ? new Date(row.date) >= new Date(startDate)
-      : true;
+    const startMatch = startDate ? new Date(row.date) >= new Date(startDate) : true;
+    const endMatch = endDate ? new Date(row.date) <= new Date(endDate) : true;
 
-    // End date filter
-    const endDateMatch = endDate
-      ? new Date(row.date) <= new Date(endDate)
-      : true;
-
-    return supplierMatch && startDateMatch && endDateMatch;
+    return supplierMatch && startMatch && endMatch;
   });
 
-  // --- Recalculate running balance after filtering ---
+  // Running balance on filtered data
   let runningBalance = 0;
-  const filteredLedgerWithBalance = filteredLedger.map((row) => {
-    runningBalance += (row.quantityIn || 0) - (row.quantityOut || 0);
+  const ledgerWithBalance = filteredLedger.map((row) => {
+    const change = (row.quantityIn || 0) - (row.quantityOut || 0);
+    runningBalance += change;
     return { ...row, balanceAfter: runningBalance };
   });
 
-  // Unique suppliers for filter dropdown
-  const suppliers = [...new Set(ledger.map((l) => l.supplierName).filter(Boolean))];
+  const suppliers = [...new Set(ledger.map(l => l.supplierName).filter(Boolean))];
+
+  // Determine display style & label
+  const getMovementInfo = (row) => {
+    const type = (row.type || "").toUpperCase();
+    const reason = row.reason || row.note || "";
+
+    if (type === "OUT") {
+      return {
+        label: "OUT",
+        bgColor: "bg-red-600",
+        textColor: "text-white",
+        rowBg: "bg-red-900/15 hover:bg-red-900/25",
+        qtyOutDisplay: `-${row.quantityOut || 0}`,
+        reasonDisplay: reason || "Stock consumption / issue"
+      };
+    }
+
+    if (type === "RETURN" || reason.toLowerCase().includes("return")) {
+      return {
+        label: "RETURN",
+        bgColor: "bg-yellow-600",
+        textColor: "text-yellow-100",
+        rowBg: "bg-yellow-900/10 hover:bg-yellow-900/20",
+        qtyOutDisplay: row.quantityOut ? `-${row.quantityOut}` : "—",
+        reasonDisplay: reason || "Return processed"
+      };
+    }
+
+    if (type === "IN") {
+      return {
+        label: "IN",
+        bgColor: "bg-green-600",
+        textColor: "text-white",
+        rowBg: "bg-green-900/10 hover:bg-green-900/20",
+        qtyOutDisplay: "—",
+        reasonDisplay: "Stock received / purchase"
+      };
+    }
+
+    return {
+      label: type || "OTHER",
+      bgColor: "bg-gray-600",
+      textColor: "text-gray-100",
+      rowBg: "hover:bg-gray-800/40",
+      qtyOutDisplay: row.quantityOut ? `-${row.quantityOut}` : "—",
+      reasonDisplay: reason || "—"
+    };
+  };
 
   return (
-    <div className="text-gray-200 p-4">
+    <div className="text-gray-200 p-4 md:p-6 space-y-6">
       <ToastContainer />
-      <h2 className="text-2xl font-bold mb-2">Product Ledger</h2>
-      <p className="text-gray-400 mb-6">Track stock in / stock out per product.</p>
+      <h2 className="text-2xl md:text-3xl font-bold">Product Ledger</h2>
+      <p className="text-gray-400">Track all stock movements per product (purchases, returns, stock-outs)</p>
 
-      {/* Product selection */}
-      <div className="mb-4 w-1/3">
-        <label className="block mb-1">Select Product</label>
+      {/* Product selector */}
+      <div className="max-w-md">
+        <label className="block mb-2 text-gray-300 font-medium">Product</label>
         <select
           value={selectedProduct}
           onChange={(e) => {
             setSelectedProduct(e.target.value);
             setSelectedSupplier("");
           }}
-          className="w-full p-2 rounded bg-gray-800 border border-gray-700"
+          className="w-full p-3 bg-gray-800 border border-gray-700 rounded-lg focus:border-blue-500 outline-none"
         >
-          <option value="">-- Choose Product --</option>
+          <option value="">— Select Product —</option>
           {products.map((p) => (
             <option key={p._id} value={p.name}>
               {p.name} ({p.sku})
@@ -116,125 +156,98 @@ function ProductLedger() {
 
       {selectedProduct && (
         <>
-          {/* Current stock */}
-          <div className="bg-blue-900/20 border border-blue-700 rounded p-4 mb-6 text-center">
-            <h3 className="text-lg font-semibold">{productName}</h3>
-            <p className="text-3xl font-bold mt-2">{currentStock}</p>
-            <p className="text-sm text-gray-400">Current Stock Balance</p>
+          {/* Current stock card */}
+          <div className="bg-gradient-to-r from-blue-950 to-indigo-950 border border-blue-800/50 rounded-xl p-6 text-center shadow-lg">
+            <h3 className="text-xl font-semibold text-blue-300 mb-3">{productName}</h3>
+            <div className="text-5xl font-bold text-white mb-1">{currentStock}</div>
+            <p className="text-gray-400">Current Stock Balance</p>
           </div>
 
           {/* Filters */}
-          <div className="flex gap-4 mb-4 flex-wrap">
-            <div>
-              <label className="block mb-1">Filter by Supplier</label>
+          <div className="flex flex-wrap gap-5 mb-6">
+            <div className="min-w-[200px]">
+              <label className="block mb-1 text-gray-400">Supplier</label>
               <select
                 value={selectedSupplier}
                 onChange={(e) => setSelectedSupplier(e.target.value)}
-                className="p-2 rounded bg-gray-800 border border-gray-700"
+                className="w-full p-2.5 bg-gray-800 border border-gray-700 rounded-lg"
               >
-                <option value="">-- All Suppliers --</option>
+                <option value="">All Suppliers</option>
                 {suppliers.map((s, i) => (
-                  <option key={i} value={s}>
-                    {s}
-                  </option>
+                  <option key={i} value={s}>{s}</option>
                 ))}
               </select>
             </div>
 
             <div>
-              <label className="block mb-1">Start Date</label>
+              <label className="block mb-1 text-gray-400">From</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="p-2 rounded bg-gray-800 border border-gray-700"
+                className="p-2.5 bg-gray-800 border border-gray-700 rounded-lg"
               />
             </div>
 
             <div>
-              <label className="block mb-1">End Date</label>
+              <label className="block mb-1 text-gray-400">To</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="p-2 rounded bg-gray-800 border border-gray-700"
+                className="p-2.5 bg-gray-800 border border-gray-700 rounded-lg"
               />
             </div>
           </div>
 
-          {/* Entries count */}
-          <div className="bg-gray-800 p-4 rounded text-center mb-6">
-            <h4 className="text-sm text-gray-400">Visible Entries</h4>
-            <p className="text-xl font-bold">{filteredLedger.length}</p>
-          </div>
-
-          {/* Ledger table */}
-          <div className="overflow-x-auto">
-            <table className="w-full border border-gray-700 rounded-md">
-              <thead className="bg-gray-800 text-gray-300">
+          {/* Table */}
+          <div className="overflow-x-auto bg-gray-800 rounded-xl border border-gray-700 shadow-2xl">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-700">
                 <tr>
-                  <th className="px-4 py-2 text-left">Date</th>
-                  <th className="px-4 py-2">Type</th>
-                  <th className="px-4 py-2">Invoice / Ref</th>
-                  <th className="px-4 py-2">Qty In</th>
-                  <th className="px-4 py-2">Qty Out</th>
-                  <th className="px-4 py-2">Supplier</th>
-                  <th className="px-4 py-2">Cashier</th>
-                  <th className="px-4 py-2">Balance</th>
+                  <th className="px-6 py-4 text-left">Date</th>
+                  <th className="px-6 py-4 text-left">Type</th>
+                  <th className="px-6 py-4 text-left">Reference</th>
+                  <th className="px-6 py-4 text-center">In</th>
+                  <th className="px-6 py-4 text-center">Out</th>
+                  <th className="px-6 py-4 text-left">Supplier</th>
+                  <th className="px-6 py-4 text-left">Reason</th>
+                  <th className="px-6 py-4 text-right">Balance</th>
                 </tr>
               </thead>
-
-              <tbody>
+              <tbody className="divide-y divide-gray-700">
                 {loading ? (
-                  <tr>
-                    <td colSpan="8" className="text-center py-8 text-gray-400">
-                      Loading ledger...
-                    </td>
-                  </tr>
-                ) : filteredLedgerWithBalance.length === 0 ? (
-                  <tr>
-                    <td colSpan="8" className="text-center py-8 text-gray-400">
-                      No ledger entries found
-                    </td>
-                  </tr>
+                  <tr><td colSpan={8} className="text-center py-12">Loading ledger...</td></tr>
+                ) : ledgerWithBalance.length === 0 ? (
+                  <tr><td colSpan={8} className="text-center py-12 text-gray-500">No movements found</td></tr>
                 ) : (
-                  filteredLedgerWithBalance.map((row, i) => {
-                    const isReturn = row.note?.toLowerCase().includes("return");
+                  ledgerWithBalance.map((row, index) => {
+                    const info = getMovementInfo(row);
                     return (
-                      <tr
-                        key={i}
-                        className={`border-t border-gray-700 hover:bg-gray-800/40 ${isReturn
-                          ? "bg-yellow-900/10"
-                          : row.type === "IN"
-                            ? "bg-green-900/10"
-                            : "bg-red-900/10"
-                          }`}
-                      >
-                        <td className="px-4 py-2">
-                          {new Date(row.date).toLocaleDateString()}
+                      <tr key={index} className={`border-t ${info.rowBg}`}>
+                        <td className="px-6 py-4">
+                          {new Date(row.date).toLocaleString("en-NG", {
+                            dateStyle: "medium",
+                            timeStyle: "short"
+                          })}
                         </td>
-                        <td className="px-4 py-2 text-center">
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${isReturn
-                              ? "bg-yellow-600 text-yellow-100"
-                              : row.type === "IN"
-                                ? "bg-green-600 text-white"
-                                : "bg-red-600 text-white"
-                              }`}
-                          >
-                            {isReturn ? "RETURN" : row.type}
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${info.bgColor} ${info.textColor}`}>
+                            {info.label}
                           </span>
                         </td>
-                        <td className="px-4 py-2 text-sm">{row.referenceNumber || "—"}</td>
-                        <td className="px-4 py-2 text-center font-medium">
-                          {typeof row.quantityIn === "number" ? row.quantityIn : "—"}
+                        <td className="px-6 py-4 text-gray-300">{row.referenceNumber || "—"}</td>
+                        <td className="px-6 py-4 text-center text-green-400 font-medium">
+                          {row.quantityIn ? `+${row.quantityIn}` : "—"}
                         </td>
-                        <td className="px-4 py-2 text-center font-medium text-red-400">
-                          {typeof row.quantityOut === "number" ? row.quantityOut : "—"}
+                        <td className="px-6 py-4 text-center text-red-400 font-medium">
+                          {info.qtyOutDisplay}
                         </td>
-                        <td className="px-4 py-2">{row.supplierName || "—"}</td>
-                        <td className="px-4 py-2">{row.cashier || "—"}</td>
-                        <td className="px-4 py-2 font-bold text-center text-lg">
+                        <td className="px-6 py-4">{row.supplierName || "—"}</td>
+                        <td className="px-6 py-4 text-gray-300 max-w-xs truncate">
+                          {info.reasonDisplay}
+                        </td>
+                        <td className="px-6 py-4 text-right font-bold text-gray-100">
                           {row.balanceAfter}
                         </td>
                       </tr>

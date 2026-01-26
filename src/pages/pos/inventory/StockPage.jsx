@@ -180,9 +180,13 @@ const StockPage = () => {
       item.markup = cost > 0 ? Number((((selling - cost) / cost) * 100).toFixed(2)) : 0;
     }
 
-    // Clamp wholesalePrice
-    if (Number(item.wholesalePrice) > item.sellingPrice) {
-      item.wholesalePrice = item.sellingPrice;
+    // CORRECTED LOGIC: Ensure wholesalePrice is strictly less than sellingPrice
+    // If wholesale is equal to or greater than selling, auto-adjust it to 95% of selling price
+    if (selling > 0 && Number(item.wholesalePrice) >= selling) {
+      item.wholesalePrice = Number((selling * 0.95).toFixed(2));
+    } else if (selling > 0 && Number(item.wholesalePrice) === 0) {
+      // Optional: Initialize wholesale to 95% of selling if it was empty/0 and selling exists
+      // item.wholesalePrice = Number((selling * 0.95).toFixed(2));
     }
 
     item.subtotal = Number((qty * cost).toFixed(2));
@@ -246,6 +250,19 @@ const StockPage = () => {
     if (Number(currentItem.quantity) <= 0) return alert("Quantity must be at least 1.");
     if (Number(currentItem.costPrice) <= 0) return alert("Cost must be greater than 0.");
     if (Number(currentItem.sellingPrice) <= 0) return alert("Selling Price must be greater than 0.");
+
+    // Final Validation: Ensure Wholesale is strictly less than Selling
+    if (Number(currentItem.wholesalePrice) >= Number(currentItem.sellingPrice)) {
+      Swal.fire({
+        icon: "warning",
+        title: "Price Conflict",
+        text: "Wholesale Price must be strictly less than Selling Price.",
+        background: "#111827",
+        color: "#fcd34d",
+        confirmButtonColor: "#d97706",
+      });
+      return;
+    }
 
     setCartItems([...cartItems, { ...currentItem }]);
     setCurrentItem({
@@ -364,11 +381,11 @@ const StockPage = () => {
     item = calculateDerived(item);
 
     // Validation + SweetAlert
-    if (item.costPrice > item.sellingPrice) {
+    if (item.costPrice >= item.sellingPrice) {
       Swal.fire({
         icon: "error",
         title: "Oops!",
-        text: "Cost price cannot be greater than Selling Price!",
+        text: "Cost price cannot be greater than or equal to Selling Price!",
         background: "#111827",
         color: "#f87171",
         confirmButtonColor: "#f87171",
@@ -376,11 +393,11 @@ const StockPage = () => {
       return; // Don't save invalid value
     }
 
-    if (item.wholesalePrice > item.sellingPrice) {
+    if (item.wholesalePrice >= item.sellingPrice) {
       Swal.fire({
         icon: "error",
         title: "Oops!",
-        text: "Wholesale price cannot exceed Selling Price!",
+        text: "Wholesale price cannot be greater than or equal to Selling Price!",
         background: "#111827",
         color: "#f87171",
         confirmButtonColor: "#f87171",
@@ -814,6 +831,16 @@ const StockPage = () => {
                                   <Check
                                     className="w-5 h-5 text-emerald-400 cursor-pointer hover:text-emerald-300"
                                     onClick={() => {
+                                      // Final validation for Save
+                                      if (editForm.costPrice >= editForm.sellingPrice) {
+                                        Swal.fire({ icon: "error", title: "Invalid", text: "Cost cannot be >= Selling" });
+                                        return;
+                                      }
+                                      if (editForm.wholesalePrice >= editForm.sellingPrice) {
+                                        Swal.fire({ icon: "error", title: "Invalid", text: "Wholesale cannot be >= Selling" });
+                                        return;
+                                      }
+
                                       const updatedCart = [...cartItems];
                                       updatedCart[index] = {
                                         ...editForm,
